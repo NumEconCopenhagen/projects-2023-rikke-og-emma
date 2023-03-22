@@ -1,4 +1,4 @@
-# \[Group name\]
+# \[Rikma\]
 
 **Group members:**
  - Rikke 
