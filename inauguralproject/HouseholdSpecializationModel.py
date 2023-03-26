@@ -140,3 +140,4 @@ class HouseholdSpecializationModelClass:
         """ estimate alpha and sigma """
 
         pass
+    #
