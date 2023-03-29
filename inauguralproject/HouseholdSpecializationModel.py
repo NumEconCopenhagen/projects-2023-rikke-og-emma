@@ -6,6 +6,8 @@ from scipy import optimize
 #test
 import pandas as pd 
 import matplotlib.pyplot as plt
+import scipy
+from scipy.optimize import minimize
 
 class HouseholdSpecializationModelClass:
 
@@ -118,12 +120,58 @@ class HouseholdSpecializationModelClass:
     def solve(self,do_print=False):
         """ solve model continously """
 
-        pass    
+        # solve for continuously model
+        #parameters 
+        par=self.par
+        sol=self.par
+        opt=SimpleNamespace()
+    
+        # bounds at 24 hour
+        # 
+
+        bnds=((0,24),(0,24),(0,24),(0,24))
+
+        # constraints, 24 hour max for H and L
+        cnst={'type':'ineq','fun':lambda x:24-x[0]-x[1],'type':'ineq','fun':lambda x:24-x[2]-x[3]}
+
+        # creating objective fct for optimize 
+        def obj(x):
+            return- self.calc_utility(x[0],x[1],x[2],x[3])
+
+        #optimizing 
+        res=minimize(obj,x0=[4.5,4.5,4.5,4.5],method='SLSQP', bounds=bnds,constraints=cnst,tol=1e-10)
+
+        #results
+        opt.LM=res.x[0]
+        opt.HM=res.x[1]
+        opt.LF=res.x[2]
+        opt.HF=res.x[3]
+        if do_print:
+            print(res.massage)
+            print(f'LM:{opt.LM:.4f}')
+            print(f'HM:{opt.HM:.4f}')
+            print(f'LF:{opt.LF:.4f}')
+            print(f'HF:{opt.HF:.4f}')
+        return  opt
 
     def solve_wF_vec(self,discrete=False):
-        """ solve model for vector of female wages """
+        sol = self.sol
+        par = self.par
 
-        pass
+        for i, w in enumerate(self.par.wF_vec):
+            par.wF = w
+
+            if discrete:
+                opt = self.solve_discrete()
+            else:
+                opt = self.solve()
+
+            sol.LF_vec[i] = opt.LF
+            sol.HF_vec[i] = opt.HF
+            sol.LM_vec[i] = opt.LM
+            sol.HM_vec[i] = opt.HM
+
+        par.wF = 1.0
 
     def run_regression(self):
         """ run regression """
@@ -136,8 +184,97 @@ class HouseholdSpecializationModelClass:
         A = np.vstack([np.ones(x.size),x]).T
         sol.beta0,sol.beta1 = np.linalg.lstsq(A,y,rcond=None)[0]
     
-    def estimate(self,alpha=None,sigma=None):
-        """ estimate alpha and sigma """
+    
+    def estimate(self,mode='normal',do_print=False):
+            """ estimate model """
+            par = self.par
+            sol = self.sol
+            
+            # Estimating the model 
+            # Normal mode is the standard mode, whit alpha and sigma 
+            if mode == 'normal':
+                def target(x):
+                    par.alpha = x[0]
+                    par.sigma = x[1]
+                    
+                    self.solve_wF_vec()
+                    self.run_regression()
+                    sol.residual = (sol.beta0-par.beta0_target)**2  + (sol.beta1-par.beta1_target)**2
+                    return sol.residual
+                #Initial guess
+                x0=[0.8,0.3] 
+                #Bounds
+                bounds = ((0.1,0.99),(0.05,0.99)) 
 
-        pass
-    #
+                #Continous solution with scipy
+                solution = optimize.minimize(target,
+                                            x0,
+                                            method='Nelder-Mead',
+                                            bounds=bounds,
+                                            tol = 1e-9)
+                par.alpha = solution.x[0]
+                par.sigma = solution.x[1]
+
+                #Results print
+                if do_print:
+                    print(f'\u03B1_opt = {par.alpha:6.10f}') 
+                    print(f'\u03C3_opt = {par.sigma:6.10f}') 
+                    print(f'Residual_opt = {sol.residual:6.6f}')
+
+            # Only sigma mode, where only sigma is estimated
+            elif mode == 'only_sigma':
+
+                def target(x):
+                    par.sigma = x
+                    self.solve_wF_vec()
+                    self.run_regression()
+                    opt.residual = (opt.beta0-par.beta0_target)**2  + (opt.beta1-par.beta1_target)**2
+                    return opt.residual
+
+                x0=[0.2] #Initial guess
+                bounds = ((0,1)) #Bounds
+
+                #Continous solution with the help of the scipy.optimize package
+                solution = optimize.minimize_scalar(target,
+                                            x0,
+                                            method='Bounded',
+                                            bounds=bounds)
+                opt.sigma = solution.x
+
+                #Printing the results
+                if do_print:
+                    print(f'\u03C3_base = {opt.sigma:6.4f}') 
+                    print(f'Residual_base = {opt.residual:6.4f}')
+
+            # Extended mode where epsilon is estimated as well as sigma
+            elif mode == 'extended':
+                
+                #Target function for the basinhopping algorithm
+                def target(x):
+                    par.epsilonF, par.sigma = x
+                    self.solve_wF_vec()
+                    self.run_regression()
+                    opt.residual = (opt.beta0-par.beta0_target)**2  + (opt.beta1-par.beta1_target)**2
+                    return opt.residual
+                    
+                #Find the global minimum
+                x0=[4.5,0.1] #Initial guess
+                bounds = ((0,5),(0,1)) #Bounds
+                solution = optimize.basinhopping(target,
+                                            x0,
+                                            niter = 20,
+                                            minimizer_kwargs = {"method": "Nelder-Mead", "bounds": bounds},
+                                            seed = par.seed)
+                opt.epsilonF = solution.x[0]
+                opt.sigma = solution.x[1]
+
+                #Results
+                if do_print:
+                    print(f'\u03B5_F_ext = {opt.epsilonF:6.4f}') 
+                    print(f'\u03C3_ext = {opt.sigma:6.4f}') 
+                    print(f'Residual_ext = {opt.residual:6.4f}')
+
+            else:
+                print('Mode not recognized. Available modes are: normal (default), extended and only_sigma')
+            pass
+        #
