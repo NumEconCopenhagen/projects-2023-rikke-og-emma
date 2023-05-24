@@ -332,7 +332,7 @@ class HouseholdSpecializationModelClassExtended:
             H = (HM**(1-par.alpha)*HF**par.alpha)
         else:
             H = ((1-par.alpha)*HM**((par.sigma-1)/par.sigma)+par.alpha*HF**((par.sigma-1)/par.sigma))**(par.sigma/(par.sigma-1))
-        #Løsning for sigma = 1. Lav H om til et if statement
+        
 
         # c. total consumption utility
         Q = C**par.omega*H**(1-par.omega)
@@ -393,16 +393,13 @@ class HouseholdSpecializationModelClassExtended:
         opt = SimpleNamespace()  
         
         # constraints and bounds; 
-        # constraints define that e.g. male cannot have the sum of work hours and household hours be more than 24.
-        # bounds define that one cannot work more than 24 in either household or work hours
+    
         constraints_m = ({'type': 'ineq', 'fun': lambda x: 18 - x[0] - x[1]}) 
         constraints_f = ({'type': 'ineq', 'fun': lambda x: 18 - x[2] - x[3]}) 
         constraints = [constraints_m, constraints_f]
         bounds = [(0,18)]*4 
 
-        # print bounds for additional info; output seems correct
-       # print("Bound test:")
-        #print(f'Bounds for [LM, HM, LF, HF]: {bounds}\n')
+    
 
         # call optimizer
         initial_guess = [10]*4
@@ -414,13 +411,6 @@ class HouseholdSpecializationModelClassExtended:
         opt.HM = res.x[1]
         opt.LF = res.x[2]
         opt.HF = res.x[3]
-
-
-        # print out the values of opt
-      #  print("Optimal choices:")
-     #   if do_print:
-      #      for k,v in opt.__dict__.items():
-       #         print(f'{k} = {v:6.4f}')
 
         return opt
     
