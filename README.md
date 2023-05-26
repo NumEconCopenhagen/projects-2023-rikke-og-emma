@@ -1,4 +1,4 @@
-# \[Rikma\]
+# \[rikke-og-emma\]
 
 **Group members:**
  - Rikke 
