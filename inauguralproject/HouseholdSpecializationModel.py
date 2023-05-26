@@ -446,4 +446,3 @@ class HouseholdSpecializationModelClassExtended:
 
         beta0_hat_list = []
         beta1_hat_list = []
-        
